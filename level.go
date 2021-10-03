@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
-
 	"github.com/golang/groupcache/lru"
 )
 
@@ -33,6 +32,41 @@ type (
 		Get(context.Context, Key) (*Entry, error)
 	}
 )
+
+func init() {
+	// Register non builtin driver.Values.
+	gob.Register(time.Time{})
+}
+
+// MarshalBinary implements the encoding.BinaryMarshaler interface.
+func (e Entry) MarshalBinary() ([]byte, error) {
+	entry := struct {
+		C []string
+		V [][]driver.Value
+	}{
+		C: e.Columns,
+		V: e.Values,
+	}
+	var buf bytes.Buffer
+	if err := gob.NewEncoder(&buf).Encode(entry); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
+// UnmarshalBinary implements the encoding.BinaryUnmarshaler interface.
+func (e *Entry) UnmarshalBinary(buf []byte) error {
+	var entry struct {
+		C []string
+		V [][]driver.Value
+	}
+	if err := gob.NewDecoder(bytes.NewBuffer(buf)).Decode(&entry); err != nil {
+		return err
+	}
+	e.Values = entry.V
+	e.Columns = entry.C
+	return nil
+}
 
 // ErrNotFound is returned by Get when and Entry does not exist in the cache.
 var ErrNotFound = errors.New("entcache: entry was not found")
@@ -93,15 +127,24 @@ func (l *LRU) Del(_ context.Context, k Key) error {
 	return nil
 }
 
-func init() {
-	// Register non builtin driver.Values.
-	gob.Register(time.Time{})
-}
-
 // Redis provides a remote cache backed by Redis
 // and implements the SetGetter interface.
 type Redis struct {
-	c *redis.Client
+	c redis.Cmdable
+}
+
+// NewRedis returns a new Redis cache level from the given Redis connection.
+//
+//	entcache.NewRedis(redis.NewClient(&redis.Options{
+//		Addr: ":6379"
+//	}))
+//
+//	entcache.NewRedis(redis.NewClusterClient(&redis.ClusterOptions{
+//		Addrs: []string{":7000", ":7001", ":7002"},
+//	}))
+//
+func NewRedis(c redis.Cmdable) *Redis {
+	return &Redis{c: c}
 }
 
 // Add adds the entry to the cache.
@@ -110,8 +153,8 @@ func (r *Redis) Add(ctx context.Context, k Key, e *Entry, ttl time.Duration) err
 	if key == "" {
 		return nil
 	}
-	var buf bytes.Buffer
-	if err := gob.NewEncoder(&buf).Encode(e); err != nil {
+	buf, err := e.MarshalBinary()
+	if err != nil {
 		return err
 	}
 	if err := r.c.Set(ctx, key, buf, ttl).Err(); err != nil {
@@ -130,9 +173,9 @@ func (r *Redis) Get(ctx context.Context, k Key) (*Entry, error) {
 	if err != nil || len(buf) == 0 {
 		return nil, ErrNotFound
 	}
-	var e *Entry
-	if err := gob.NewDecoder(bytes.NewBuffer(buf)).Decode(e); err != nil {
-		return nil, ErrNotFound
+	e := &Entry{}
+	if err := e.UnmarshalBinary(buf); err != nil {
+		return nil, err
 	}
 	return e, nil
 }

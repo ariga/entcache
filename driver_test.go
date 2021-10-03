@@ -2,6 +2,7 @@ package entcache_test
 
 import (
 	"context"
+	"database/sql/driver"
 	"testing"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"github.com/DATA-DOG/go-sqlmock"
+	"github.com/go-redis/redismock/v8"
 )
 
 func TestDriver_ContextLevel(t *testing.T) {
@@ -107,6 +109,33 @@ func TestDriver_Levels(t *testing.T) {
 		expectQuery(context.Background(), t, drv, "SELECT age FROM users", []interface{}{20.1, 30.2, 40.5})
 		expectQuery(context.Background(), t, drv, "SELECT age FROM users", []interface{}{20.1, 30.2, 40.5})
 		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("Redis", func(t *testing.T) {
+		var (
+			rdb, rmock = redismock.NewClientMock()
+			drv        = entcache.NewDriver(
+				drv,
+				entcache.Levels(
+					entcache.NewLRU(-1),
+					entcache.NewRedis(rdb),
+				),
+				entcache.Hash(func(string, []interface{}) (entcache.Key, error) {
+					return 1, nil
+				}),
+			)
+		)
+		mock.ExpectQuery("SELECT active FROM users").
+			WillReturnRows(sqlmock.NewRows([]string{"active"}).AddRow(true).AddRow(false))
+		rmock.ExpectGet("1").RedisNil()
+		buf, _ := entcache.Entry{Values: [][]driver.Value{{true}, {false}}}.MarshalBinary()
+		rmock.ExpectSet("1", buf, 0).RedisNil()
+		expectQuery(context.Background(), t, drv, "SELECT active FROM users", []interface{}{true, false})
+		rmock.ExpectGet("1").SetVal(string(buf))
+		expectQuery(context.Background(), t, drv, "SELECT active FROM users", []interface{}{true, false})
+		if err := rmock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
 		}
 	})

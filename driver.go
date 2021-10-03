@@ -54,9 +54,11 @@ type (
 //	entcache.NewDriver(
 //		drv,
 //		entcache.TTL(time.Minute),
-//		entcache.MultiLevel(
+//		entcache.Levels(
 //			NewLRU(256),
-//			NewRedis("localhost:9090"),
+//			NewRedis(redis.NewClient(&redis.Options{
+//				Addr: ":6379",
+//			})),
 //		)
 //	)
 //
