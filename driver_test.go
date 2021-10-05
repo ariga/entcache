@@ -192,6 +192,23 @@ func TestDriver_ContextOptions(t *testing.T) {
 	})
 }
 
+func TestDriver_SkipInsert(t *testing.T) {
+	db, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	drv := entcache.NewDriver(sql.OpenDB(dialect.Postgres, db), entcache.Hash(func(string, []interface{}) (entcache.Key, error) {
+		t.Fatal("Driver.Query should not be called for INSERT statements")
+		return nil, nil
+	}))
+	mock.ExpectQuery("INSERT INTO users DEFAULT VALUES RETURNING id").
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	expectQuery(context.Background(), t, drv, "INSERT INTO users DEFAULT VALUES RETURNING id", []interface{}{int64(1)})
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func expectQuery(ctx context.Context, t *testing.T, drv dialect.Driver, query string, args []interface{}) {
 	rows := &sql.Rows{}
 	if err := drv.Query(ctx, query, []interface{}{}, rows); err != nil {

@@ -6,6 +6,7 @@ import (
 	"database/sql/driver"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 	_ "unsafe"
 
@@ -121,6 +122,13 @@ func ContextLevel() Option {
 // there is no cache entry for them, the driver will execute both of them and the
 // last successful one will be stored in the cache.
 func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) error {
+	// Check if the given statement looks like a standard Ent query (e.g. SELECT).
+	// Custom queries (e.g. CTE) or statements that are prefixed with comments are
+	// not supported. This check is mainly necessary, because PostgreSQL and SQLite
+	// may execute insert statement like "INSERT ... RETURNING" using Driver.Query.
+	if !strings.HasPrefix(query, "SELECT") && !strings.HasPrefix(query, "select") {
+		return d.Driver.Query(ctx, query, args, v)
+	}
 	vr, ok := v.(*sql.Rows)
 	if !ok {
 		return fmt.Errorf("entcache: invalid type %T. expect *sql.Rows", v)
