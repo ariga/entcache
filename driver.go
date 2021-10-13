@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync/atomic"
 	"time"
 	_ "unsafe"
 
@@ -46,6 +47,7 @@ type (
 	Driver struct {
 		dialect.Driver
 		*Options
+		stats Stats
 	}
 )
 
@@ -143,8 +145,10 @@ func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) e
 	if err != nil {
 		return d.Driver.Query(ctx, query, args, v)
 	}
+	atomic.AddUint64(&d.stats.Gets, 1)
 	switch e, err := d.Cache.Get(ctx, opts.key); {
 	case err == nil:
+		atomic.AddUint64(&d.stats.Hits, 1)
 		vr.ColumnScanner = &repeater{columns: e.Columns, values: e.Values}
 	case err == ErrNotFound:
 		if err := d.Driver.Query(ctx, query, args, vr); err != nil {
@@ -155,6 +159,7 @@ func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) e
 			onClose: func(columns []string, values [][]driver.Value) {
 				err := d.Cache.Add(ctx, opts.key, &Entry{Columns: columns, Values: values}, opts.ttl)
 				if err != nil && d.Log != nil {
+					atomic.AddUint64(&d.stats.Errors, 1)
 					d.Log(fmt.Sprintf("entcache: failed storing entry %v in cache: %v", opts.key, err))
 				}
 			},
@@ -163,6 +168,15 @@ func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) e
 		return d.Driver.Query(ctx, query, args, v)
 	}
 	return nil
+}
+
+// Stats returns a copy of the cache statistics.
+func (d *Driver) Stats() Stats {
+	return Stats{
+		Gets:   atomic.LoadUint64(&d.stats.Gets),
+		Hits:   atomic.LoadUint64(&d.stats.Hits),
+		Errors: atomic.LoadUint64(&d.stats.Errors),
+	}
 }
 
 // errSkip tells the driver to skip cache layer.
@@ -209,6 +223,13 @@ func DefaultHash(query string, args []interface{}) (Key, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+// Stats represents the cache statistics of the driver.
+type Stats struct {
+	Gets   uint64
+	Hits   uint64
+	Errors uint64
 }
 
 // rawCopy copies the driver values by implementing
