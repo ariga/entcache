@@ -36,16 +36,16 @@ client := ent.NewClient(ent.Driver(drv))
 // Tell the entcache.Driver to skip the caching layer
 // when running the schema migration.
 if client.Schema.Create(entcache.Skip(ctx)); err != nil {
-    log.Fatal("running schema migration", err)
+	log.Fatal("running schema migration", err)
 }
 
 // Run queries.
 if u, err := client.User.Get(ctx, id); err != nil {
-    log.Fatal("querying user", err)
+	log.Fatal("querying user", err)
 }
 // The query below is cached.
 if u, err := client.User.Get(ctx, id); err != nil {
-    log.Fatal("querying user", err)
+	log.Fatal("querying user", err)
 }
 ```
 
