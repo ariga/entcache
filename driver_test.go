@@ -138,6 +138,10 @@ func TestDriver_Levels(t *testing.T) {
 		if err := rmock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
 		}
+		expected := entcache.Stats{Gets: 2, Hits: 1}
+		if s := drv.Stats(); s != expected {
+			t.Errorf("unexpected stats: %v != %v", s, expected)
+		}
 	})
 }
 
@@ -218,6 +222,10 @@ func TestDriver_ContextOptions(t *testing.T) {
 		if err := mock.ExpectationsWereMet(); err != nil {
 			t.Fatal(err)
 		}
+		expected := entcache.Stats{Gets: 4, Hits: 1}
+		if s := drv.Stats(); s != expected {
+			t.Errorf("unexpected stats: %v != %v", s, expected)
+		}
 	})
 }
 
@@ -235,6 +243,10 @@ func TestDriver_SkipInsert(t *testing.T) {
 	expectQuery(context.Background(), t, drv, "INSERT INTO users DEFAULT VALUES RETURNING id", []interface{}{int64(1)})
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
+	}
+	var expected entcache.Stats
+	if s := drv.Stats(); s != expected {
+		t.Errorf("unexpected stats: %v != %v", s, expected)
 	}
 }
 
