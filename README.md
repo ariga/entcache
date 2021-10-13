@@ -1,8 +1,16 @@
 # entcache
 
-An experimental cache driver for [ent](https://github.com/ent/ent) with variety of stores,
-such as context-based (i.e. request-based ) level, driver (or process) level, remote level
-and multi level.
+An experimental cache driver for [ent](https://github.com/ent/ent) with variety of storage options, such as:
+
+1. A `context.Context`-based cache. Usually, attached to an HTTP request.
+
+2. A driver level cache embedded in the `ent.Client`. Used to share cache entries on the process level.
+
+4. A remote cache. For example, a Redis database that provides a persistence layer for storing and sharing cache
+  entries between multiple processes.
+
+4. A cache hierarchy, or multi-level cache allows structuring the cache in hierarchical way. For example, a 2-level cache
+   that composed from an LRU-cache in the application memory, and a remote-level cache backed by a Redis database.
 
 ## Quick Introduction
 
@@ -49,8 +57,8 @@ The section below covers the different approaches provided by this package.
 
 On a high level, `entcache.Driver` decorates the `Query` method of the given driver, and for each call, generates a cache
 key (i.e. hash) from its arguments (i.e. statement and parameters). After the query is executed, the driver records the
-raw values of the returned rows (`sql.Rows`), and stores them in the cache store with the generated cache key. That
-means, the recorded rows will be returned the next time the query is executed, if it was not evicted by the cache store.
+raw values of the returned rows (`sql.Rows`), and stores them in the cache store with the generated cache key. This
+means, that the recorded rows will be returned the next time the query is executed, if it was not evicted by the cache store.
 
 The package provides a variety of options to configure the TTL of the cache entries, control the hash function, provide
 custom and multi-level cache stores, evict and skip cache entries. See the full documentation in
@@ -58,26 +66,26 @@ custom and multi-level cache stores, evict and skip cache entries. See the full 
 
 ### Caching Levels
 
-`entcache` provides several builtin cache levels.
+`entcache` provides several builtin cache levels:
 
-**1\.** A `context.Context`-based level cache. Usually, attached to a request and does not work with other cache levels.
+1. A `context.Context`-based cache. Usually, attached to a request and does not work with other cache levels.
 It is used to eliminate duplicate queries that are executed by the same request.
 
-**2\.** A driver-based level cache used by the `ent.Client`. An application usually creates a driver per database,
+2. A driver-level cache used by the `ent.Client`. An application usually creates a driver per database,
 and therefore, we treat it as a process-level cache.
 
-**3\.** A remote-based level. For example, a Redis database that provides a persistence layer for storing and sharing cache
+3. A remote cache. For example, a Redis database that provides a persistence layer for storing and sharing cache
   entries between multiple processes. A remote cache layer is resistant to application deployment changes or failures,
   and allows reducing the number of identical queries executed on the database by different process.
 
-**4\.** A cache hierarchy, or multi-level cache allows structuring the cache in hierarchical way. The hierarchy of cache
-stores is mostly based on access speeds and cache sizes. For example, a 2-level cache that compounds from an LRU-cache
+4. A cache hierarchy, or multi-level cache allows structuring the cache in hierarchical way. The hierarchy of cache
+stores is mostly based on access speeds and cache sizes. For example, a 2-level cache that composed from an LRU-cache
 in the application memory, and a remote-level cache backed by a Redis database.
 
 #### Context Level Cache
 
 The `ContextLevel` option configures the driver to work with a `context.Context` level cache. The context is usually
-attached to a request (e.g. `*http.Request`) and does not work with other cache levels. When this option is used as
+attached to a request (e.g. `*http.Request`) and is not available in multi-level mode. When this option is used as
 a cache store, the attached `context.Context` carries an LRU cache (can be configured differently), and the driver
 stores and searches entries in the LRU cache when queries are executed.
 
@@ -108,7 +116,7 @@ the todos of each user, and a query for each todo item for getting its owner (re
 
 However, Ent provides a unique approach for resolving such queries(read more in
 [Ent website](https://entgo.io/docs/tutorial-todo-gql-field-collection)) and therefore, only 3 queries will be executed
-in such case. 1 for getting N users, 1 for getting the todo items of **all** users, and 1 query for getting the owners
+in this case. 1 for getting N users, 1 for getting the todo items of **all** users, and 1 query for getting the owners
 of **all** todo items.
 
 With `entcache`, the number of queries may be reduced to 2, as the first and last queries are identical (see
@@ -201,8 +209,7 @@ client := ent.NewClient(ent.Driver(drv))
 
 A remote-based level cache is used to share cached entries between multiple processes. For example, a Redis database.
 A remote cache layer is resistant to application deployment changes or failures, and allows reducing the number of
-identical queries executed on the database by different processes. This option is usually plays nicely the multi-level
-option below. 
+identical queries executed on the database by different processes. This option plays nicely the multi-level option below. 
 
 #### Multi Level Cache
 
@@ -214,7 +221,7 @@ in the application memory, and a remote-level cache backed by a Redis database.
 
 ```go
 rdb := redis.NewClient(&redis.Options{
-    Addr:     ":6379",
+    Addr: ":6379",
 })
 if err := rdb.Ping(ctx).Err(); err != nil {
     log.Fatal(err)
@@ -232,10 +239,9 @@ client := ent.NewClient(ent.Driver(drv))
 
 ### Future Work
 
-There are a few features we are working on, and wish to work on, but need a help from the community to design them
+There are a few features we are working on, and wish to work on, but need help from the community to design them
 properly. If you are interested in one of the tasks or features below, do not hesitate to open an issue, or start a
 discussion on GitHub or in [Ent Slack channel](https://entgo.io/docs/slack).
 
-**1\.** Add a Memcache implementation for a remote-level cache.
-
-**2\.** Support for smart eviction mechanism based on SQL parsing.
+1. Add a Memcache implementation for a remote-level cache.
+2. Support for smart eviction mechanism based on SQL parsing.
