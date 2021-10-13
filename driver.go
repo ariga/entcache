@@ -170,9 +170,13 @@ func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) e
 	return nil
 }
 
-// Stats returns a (copy of the) cache statistics.
+// Stats returns a copy of the cache statistics.
 func (d *Driver) Stats() Stats {
-	return d.stats
+	return Stats{
+		Gets:   atomic.LoadUint64(&d.stats.Gets),
+		Hits:   atomic.LoadUint64(&d.stats.Hits),
+		Errors: atomic.LoadUint64(&d.stats.Errors),
+	}
 }
 
 // errSkip tells the driver to skip cache layer.
