@@ -3,7 +3,7 @@ module ariga.io/entcache
 go 1.17
 
 require (
-	entgo.io/ent v0.9.2-0.20210929181626-c290382a261e
+	entgo.io/ent v0.9.2-0.20211014063230-899e9f0e50ba
 	github.com/golang/groupcache v0.0.0-20210331224755-41bb18bfe9da // indirect
 	github.com/google/uuid v1.3.0 // indirect
 	github.com/mitchellh/hashstructure v1.1.0 // indirect
