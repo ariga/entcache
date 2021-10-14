@@ -3,8 +3,8 @@ module todo
 go 1.17
 
 require (
-	entgo.io/contrib v0.1.1-0.20211006191841-43b855f4c779
-	entgo.io/ent v0.9.2-0.20210927144957-4306643d16b3
+	entgo.io/contrib v0.1.1-0.20211009150803-2f98d3a15e7d
+	entgo.io/ent v0.9.2-0.20211014063230-899e9f0e50ba
 	github.com/99designs/gqlgen v0.14.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/pkg/errors v0.9.1 // indirect
@@ -22,7 +22,7 @@ require (
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/mod v0.4.2 // indirect
-	golang.org/x/tools v0.1.6 // indirect
+	golang.org/x/tools v0.1.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 )

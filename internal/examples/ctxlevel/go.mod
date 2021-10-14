@@ -13,8 +13,8 @@ require (
 )
 
 require (
-	entgo.io/contrib v0.1.1-0.20211006191841-43b855f4c779
-	entgo.io/ent v0.9.2-0.20210929181626-c290382a261e
+	entgo.io/contrib v0.1.1-0.20211009150803-2f98d3a15e7d
+	entgo.io/ent v0.9.2-0.20211014063230-899e9f0e50ba
 	github.com/99designs/gqlgen v0.14.0
 	github.com/alecthomas/kong v0.2.16
 	github.com/mattn/go-sqlite3 v1.14.8
@@ -44,7 +44,7 @@ require (
 	golang.org/x/mod v0.4.2 // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
 	golang.org/x/sys v0.0.0-20210809222454-d867a43fc93e // indirect
-	golang.org/x/tools v0.1.6 // indirect
+	golang.org/x/tools v0.1.7 // indirect
 	golang.org/x/xerrors v0.0.0-20200804184101-5ec99f83aff1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20200615113413-eeeca48fe776 // indirect
