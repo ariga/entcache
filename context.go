@@ -39,6 +39,9 @@ var ctxOptionsKey ctxOptions
 
 // Skip returns a new Context that tells the Driver
 // to skip the cache entry on Query.
+//
+//	client.T.Query().All(entcache.Skip(ctx))
+//
 func Skip(ctx context.Context) context.Context {
 	c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions)
 	if !ok {
@@ -50,6 +53,9 @@ func Skip(ctx context.Context) context.Context {
 
 // Evict returns a new Context that tells the Driver
 // to skip and invalidate the cache entry on Query.
+//
+//	client.T.Query().All(entcache.Evict(ctx))
+//
 func Evict(ctx context.Context) context.Context {
 	c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions)
 	if !ok {
@@ -63,6 +69,9 @@ func Evict(ctx context.Context) context.Context {
 // WithKey returns a new Context that carries the Key for the cache entry.
 // Note that, this option should not be used if the ent.Client query involves
 // more than 1 SQL query (e.g. eager loading).
+//
+//	client.T.Query().All(entcache.WithKey(ctx, "key"))
+//
 func WithKey(ctx context.Context, key Key) context.Context {
 	c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions)
 	if !ok {
@@ -73,6 +82,9 @@ func WithKey(ctx context.Context, key Key) context.Context {
 }
 
 // WithTTL returns a new Context that carries the TTL for the cache entry.
+//
+//	client.T.Query().All(entcache.WithTTL(ctx, time.Second))
+//
 func WithTTL(ctx context.Context, ttl time.Duration) context.Context {
 	c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions)
 	if !ok {
