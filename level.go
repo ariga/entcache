@@ -93,10 +93,19 @@ func NewLRU(maxEntries int) *LRU {
 
 // Add adds the entry to the cache.
 func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
+	oldBytes, marshalErr:= e.MarshalBinary()
+	if marshalErr!= nil{
+		return marshalErr
+	}
+	newEntry := &Entry{}
+	unmarshalErr := newEntry.UnmarshalBinary(oldBytes)
+	if unmarshalErr != nil {
+		return unmarshalErr
+	}
 	if ttl == 0 {
-		l.Cache.Add(k, e)
+		l.Cache.Add(k, newEntry)
 	} else {
-		l.Cache.Add(k, &entry{Entry: e, expiry: time.Now().Add(ttl)})
+		l.Cache.Add(k, &entry{Entry: newEntry, expiry: time.Now().Add(ttl)})
 	}
 	return nil
 }
