@@ -7,6 +7,7 @@ import (
 	"encoding/gob"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/go-redis/redis/v8"
@@ -75,6 +76,7 @@ type (
 	// LRU provides an LRU cache that implements the AddGetter interface.
 	LRU struct {
 		*lru.Cache
+		lock *sync.Mutex
 	}
 	// entry wraps the Entry with additional expiry information.
 	entry struct {
@@ -83,16 +85,19 @@ type (
 	}
 )
 
-// New creates a new Cache.
+// NewLRU creates a new Cache.
 // If maxEntries is zero, the cache has no limit.
 func NewLRU(maxEntries int) *LRU {
 	return &LRU{
 		Cache: lru.New(maxEntries),
+		lock:  &sync.Mutex{},
 	}
 }
 
 // Add adds the entry to the cache.
 func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	if ttl == 0 {
 		l.Cache.Add(k, e)
 	} else {
@@ -103,6 +108,8 @@ func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 
 // Get gets an entry from the cache.
 func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
+	l.lock.Lock()
+	defer l.lock.Unlock()
 	e, ok := l.Cache.Get(k)
 	if !ok {
 		return nil, ErrNotFound
