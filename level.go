@@ -75,7 +75,7 @@ var ErrNotFound = errors.New("entcache: entry was not found")
 type (
 	// LRU provides an LRU cache that implements the AddGetter interface.
 	LRU struct {
-		mu *sync.RWMutex
+		mu sync.RWMutex
 		*lru.Cache
 	}
 	// entry wraps the Entry with additional expiry information.
@@ -90,7 +90,6 @@ type (
 func NewLRU(maxEntries int) *LRU {
 	return &LRU{
 		Cache: lru.New(maxEntries),
-		mu:    &sync.RWMutex{},
 	}
 }
 
@@ -98,7 +97,6 @@ func NewLRU(maxEntries int) *LRU {
 func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
 	if ttl == 0 {
 		l.Cache.Add(k, e)
 	} else {
@@ -112,7 +110,6 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 	l.mu.RLock()
 	e, ok := l.Cache.Get(k)
 	l.mu.RUnlock()
-
 	if !ok {
 		return nil, ErrNotFound
 	}
@@ -124,7 +121,6 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 		if time.Now().Before(e.expiry) {
 			return e.Entry, nil
 		}
-
 		l.mu.Lock()
 		l.Cache.Remove(k)
 		l.mu.Unlock()
@@ -139,7 +135,6 @@ func (l *LRU) Del(_ context.Context, k Key) error {
 	l.mu.Lock()
 	l.Cache.Remove(k)
 	l.mu.Unlock()
-
 	return nil
 }
 
