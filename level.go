@@ -75,8 +75,8 @@ var ErrNotFound = errors.New("entcache: entry was not found")
 type (
 	// LRU provides an LRU cache that implements the AddGetter interface.
 	LRU struct {
+		mu *sync.RWMutex
 		*lru.Cache
-		lock *sync.Mutex
 	}
 	// entry wraps the Entry with additional expiry information.
 	entry struct {
@@ -90,14 +90,15 @@ type (
 func NewLRU(maxEntries int) *LRU {
 	return &LRU{
 		Cache: lru.New(maxEntries),
-		lock:  &sync.Mutex{},
+		mu:    &sync.RWMutex{},
 	}
 }
 
 // Add adds the entry to the cache.
 func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
 	if ttl == 0 {
 		l.Cache.Add(k, e)
 	} else {
@@ -108,12 +109,14 @@ func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 
 // Get gets an entry from the cache.
 func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
-	l.lock.Lock()
-	defer l.lock.Unlock()
+	l.mu.RLock()
 	e, ok := l.Cache.Get(k)
+	l.mu.RUnlock()
+
 	if !ok {
 		return nil, ErrNotFound
 	}
+
 	switch e := e.(type) {
 	case *Entry:
 		return e, nil
@@ -121,7 +124,10 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 		if time.Now().Before(e.expiry) {
 			return e.Entry, nil
 		}
+
+		l.mu.Lock()
 		l.Cache.Remove(k)
+		l.mu.Unlock()
 		return nil, ErrNotFound
 	default:
 		return nil, fmt.Errorf("entcache: unexpected entry type: %T", e)
@@ -130,7 +136,10 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 
 // Del deletes an entry from the cache.
 func (l *LRU) Del(_ context.Context, k Key) error {
+	l.mu.Lock()
 	l.Cache.Remove(k)
+	l.mu.Unlock()
+
 	return nil
 }
 
