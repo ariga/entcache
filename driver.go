@@ -64,7 +64,6 @@ type (
 //			})),
 //		)
 //	)
-//
 func NewDriver(drv dialect.Driver, opts ...Option) *Driver {
 	options := &Options{Hash: DefaultHash, Cache: NewLRU(0)}
 	for _, opt := range opts {
@@ -111,7 +110,6 @@ func Levels(levels ...AddGetDeleter) Option {
 //	ctx = entcache.NewContext(ctx)
 //
 //	ctx = entcache.NewContext(ctx, entcache.NewLRU(128))
-//
 func ContextLevel() Option {
 	return func(o *Options) {
 		o.Cache = &contextLevel{}
@@ -177,6 +175,29 @@ func (d *Driver) Stats() Stats {
 		Hits:   atomic.LoadUint64(&d.stats.Hits),
 		Errors: atomic.LoadUint64(&d.stats.Errors),
 	}
+}
+
+// QueryContext calls QueryContext of the underlying driver, or fails if it is not supported.
+// Note, this method is not part of the caching layer since Ent does not use it by default.
+func (d *Driver) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	drv, ok := d.Driver.(interface {
+		QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Driver.QueryContext is not supported")
+	}
+	return drv.QueryContext(ctx, query, args...)
+}
+
+// ExecContext calls ExecContext of the underlying driver, or fails if it is not supported.
+func (d *Driver) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	drv, ok := d.Driver.(interface {
+		ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+	})
+	if !ok {
+		return nil, fmt.Errorf("Driver.ExecContext is not supported")
+	}
+	return drv.ExecContext(ctx, query, args...)
 }
 
 // errSkip tells the driver to skip cache layer.
