@@ -23,7 +23,7 @@ type (
 
 	// A Key defines a comparable Go value.
 	// See http://golang.org/ref/spec#Comparison_operators
-	Key interface{}
+	Key any
 
 	// AddGetDeleter defines the interface for getting,
 	// adding and deleting entries from the cache.
@@ -102,7 +102,7 @@ func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 		return err
 	}
 	ne := &Entry{}
-	if  err := ne.UnmarshalBinary(buf); err != nil {
+	if err := ne.UnmarshalBinary(buf); err != nil {
 		return err
 	}
 	if ttl == 0 {
@@ -121,7 +121,6 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 	if !ok {
 		return nil, ErrNotFound
 	}
-
 	switch e := e.(type) {
 	case *Entry:
 		return e, nil
@@ -161,7 +160,6 @@ type Redis struct {
 //	entcache.NewRedis(redis.NewClusterClient(&redis.ClusterOptions{
 //		Addrs: []string{":7000", ":7001", ":7002"},
 //	}))
-//
 func NewRedis(c redis.Cmdable) *Redis {
 	return &Redis{c: c}
 }

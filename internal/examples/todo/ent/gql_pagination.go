@@ -49,7 +49,7 @@ func (o OrderDirection) MarshalGQL(w io.Writer) {
 }
 
 // UnmarshalGQL implements graphql.Unmarshaler interface.
-func (o *OrderDirection) UnmarshalGQL(val interface{}) error {
+func (o *OrderDirection) UnmarshalGQL(val any) error {
 	str, ok := val.(string)
 	if !ok {
 		return fmt.Errorf("order direction %T must be a string", val)
@@ -76,7 +76,7 @@ func cursorsToPredicates(direction OrderDirection, after, before *Cursor, field,
 	var predicates []func(s *sql.Selector)
 	if after != nil {
 		if after.Value != nil {
-			var predicate func([]string, ...interface{}) *sql.Predicate
+			var predicate func([]string, ...any) *sql.Predicate
 			if direction == OrderDirectionAsc {
 				predicate = sql.CompositeGT
 			} else {
@@ -89,7 +89,7 @@ func cursorsToPredicates(direction OrderDirection, after, before *Cursor, field,
 				))
 			})
 		} else {
-			var predicate func(string, interface{}) *sql.Predicate
+			var predicate func(string, any) *sql.Predicate
 			if direction == OrderDirectionAsc {
 				predicate = sql.GT
 			} else {
@@ -105,7 +105,7 @@ func cursorsToPredicates(direction OrderDirection, after, before *Cursor, field,
 	}
 	if before != nil {
 		if before.Value != nil {
-			var predicate func([]string, ...interface{}) *sql.Predicate
+			var predicate func([]string, ...any) *sql.Predicate
 			if direction == OrderDirectionAsc {
 				predicate = sql.CompositeLT
 			} else {
@@ -118,7 +118,7 @@ func cursorsToPredicates(direction OrderDirection, after, before *Cursor, field,
 				))
 			})
 		} else {
-			var predicate func(string, interface{}) *sql.Predicate
+			var predicate func(string, any) *sql.Predicate
 			if direction == OrderDirectionAsc {
 				predicate = sql.LT
 			} else {
@@ -160,7 +160,7 @@ func (c Cursor) MarshalGQL(w io.Writer) {
 }
 
 // UnmarshalGQL implements graphql.Unmarshaler interface.
-func (c *Cursor) UnmarshalGQL(v interface{}) error {
+func (c *Cursor) UnmarshalGQL(v any) error {
 	s, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("%T is not a string", v)
@@ -491,7 +491,7 @@ func (f TodoOrderField) MarshalGQL(w io.Writer) {
 }
 
 // UnmarshalGQL implements graphql.Unmarshaler interface.
-func (f *TodoOrderField) UnmarshalGQL(v interface{}) error {
+func (f *TodoOrderField) UnmarshalGQL(v any) error {
 	str, ok := v.(string)
 	if !ok {
 		return fmt.Errorf("TodoOrderField %T must be a string", v)

@@ -40,7 +40,7 @@ func IDIn(ids ...int) predicate.Todo {
 			s.Where(sql.False())
 			return
 		}
-		v := make([]interface{}, len(ids))
+		v := make([]any, len(ids))
 		for i := range v {
 			v[i] = ids[i]
 		}
@@ -57,7 +57,7 @@ func IDNotIn(ids ...int) predicate.Todo {
 			s.Where(sql.False())
 			return
 		}
-		v := make([]interface{}, len(ids))
+		v := make([]any, len(ids))
 		for i := range v {
 			v[i] = ids[i]
 		}
@@ -130,7 +130,7 @@ func TextNEQ(v string) predicate.Todo {
 
 // TextIn applies the In predicate on the "text" field.
 func TextIn(vs ...string) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -147,7 +147,7 @@ func TextIn(vs ...string) predicate.Todo {
 
 // TextNotIn applies the NotIn predicate on the "text" field.
 func TextNotIn(vs ...string) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -241,7 +241,7 @@ func CreatedAtNEQ(v time.Time) predicate.Todo {
 
 // CreatedAtIn applies the In predicate on the "created_at" field.
 func CreatedAtIn(vs ...time.Time) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -258,7 +258,7 @@ func CreatedAtIn(vs ...time.Time) predicate.Todo {
 
 // CreatedAtNotIn applies the NotIn predicate on the "created_at" field.
 func CreatedAtNotIn(vs ...time.Time) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -317,7 +317,7 @@ func StatusNEQ(v Status) predicate.Todo {
 
 // StatusIn applies the In predicate on the "status" field.
 func StatusIn(vs ...Status) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -334,7 +334,7 @@ func StatusIn(vs ...Status) predicate.Todo {
 
 // StatusNotIn applies the NotIn predicate on the "status" field.
 func StatusNotIn(vs ...Status) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -365,7 +365,7 @@ func PriorityNEQ(v int) predicate.Todo {
 
 // PriorityIn applies the In predicate on the "priority" field.
 func PriorityIn(vs ...int) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
@@ -382,7 +382,7 @@ func PriorityIn(vs ...int) predicate.Todo {
 
 // PriorityNotIn applies the NotIn predicate on the "priority" field.
 func PriorityNotIn(vs ...int) predicate.Todo {
-	v := make([]interface{}, len(vs))
+	v := make([]any, len(vs))
 	for i := range v {
 		v[i] = vs[i]
 	}
