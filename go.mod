@@ -1,6 +1,6 @@
 module ariga.io/entcache
 
-go 1.17
+go 1.19
 
 require (
 	entgo.io/ent v0.11.2-0.20220805114204-0066eb986dd3

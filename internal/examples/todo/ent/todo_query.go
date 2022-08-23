@@ -434,12 +434,12 @@ func (tq *TodoQuery) sqlAll(ctx context.Context) ([]*Todo, error) {
 	if withFKs {
 		_spec.Node.Columns = append(_spec.Node.Columns, todo.ForeignKeys...)
 	}
-	_spec.ScanValues = func(columns []string) ([]interface{}, error) {
+	_spec.ScanValues = func(columns []string) ([]any, error) {
 		node := &Todo{config: tq.config}
 		nodes = append(nodes, node)
 		return node.scanValues(columns)
 	}
-	_spec.Assign = func(columns []string, values []interface{}) error {
+	_spec.Assign = func(columns []string, values []any) error {
 		if len(nodes) == 0 {
 			return fmt.Errorf("ent: Assign called without calling ScanValues")
 		}
@@ -654,7 +654,7 @@ func (tgb *TodoGroupBy) Aggregate(fns ...AggregateFunc) *TodoGroupBy {
 }
 
 // Scan applies the group-by query and scans the result into the given value.
-func (tgb *TodoGroupBy) Scan(ctx context.Context, v interface{}) error {
+func (tgb *TodoGroupBy) Scan(ctx context.Context, v any) error {
 	query, err := tgb.path(ctx)
 	if err != nil {
 		return err
@@ -664,7 +664,7 @@ func (tgb *TodoGroupBy) Scan(ctx context.Context, v interface{}) error {
 }
 
 // ScanX is like Scan, but panics if an error occurs.
-func (tgb *TodoGroupBy) ScanX(ctx context.Context, v interface{}) {
+func (tgb *TodoGroupBy) ScanX(ctx context.Context, v any) {
 	if err := tgb.Scan(ctx, v); err != nil {
 		panic(err)
 	}
@@ -866,7 +866,7 @@ func (tgb *TodoGroupBy) BoolX(ctx context.Context) bool {
 	return v
 }
 
-func (tgb *TodoGroupBy) sqlScan(ctx context.Context, v interface{}) error {
+func (tgb *TodoGroupBy) sqlScan(ctx context.Context, v any) error {
 	for _, f := range tgb.fields {
 		if !todo.ValidColumn(f) {
 			return &ValidationError{Name: f, err: fmt.Errorf("invalid field %q for group-by", f)}
@@ -914,7 +914,7 @@ type TodoSelect struct {
 }
 
 // Scan applies the selector query and scans the result into the given value.
-func (ts *TodoSelect) Scan(ctx context.Context, v interface{}) error {
+func (ts *TodoSelect) Scan(ctx context.Context, v any) error {
 	if err := ts.prepareQuery(ctx); err != nil {
 		return err
 	}
@@ -923,7 +923,7 @@ func (ts *TodoSelect) Scan(ctx context.Context, v interface{}) error {
 }
 
 // ScanX is like Scan, but panics if an error occurs.
-func (ts *TodoSelect) ScanX(ctx context.Context, v interface{}) {
+func (ts *TodoSelect) ScanX(ctx context.Context, v any) {
 	if err := ts.Scan(ctx, v); err != nil {
 		panic(err)
 	}
@@ -1117,7 +1117,7 @@ func (ts *TodoSelect) BoolX(ctx context.Context) bool {
 	return v
 }
 
-func (ts *TodoSelect) sqlScan(ctx context.Context, v interface{}) error {
+func (ts *TodoSelect) sqlScan(ctx context.Context, v any) error {
 	rows := &sql.Rows{}
 	query, args := ts.sql.Query()
 	if err := ts.driver.Query(ctx, query, args, rows); err != nil {

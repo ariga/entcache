@@ -31,11 +31,11 @@ type (
 		// Hash defines an optional Hash function for converting
 		// a query and its arguments to a cache key. If no Hash
 		// function was provided, the DefaultHash is used.
-		Hash func(query string, args []interface{}) (Key, error)
+		Hash func(query string, args []any) (Key, error)
 
 		// Logf function. If provided, the Driver will call it with
 		// errors that can not be handled.
-		Log func(...interface{})
+		Log func(...any)
 	}
 
 	// Option allows configuring the cache
@@ -85,7 +85,7 @@ func TTL(ttl time.Duration) Option {
 
 // Hash configures an optional Hash function for
 // converting a query and its arguments to a cache key.
-func Hash(hash func(query string, args []interface{}) (Key, error)) Option {
+func Hash(hash func(query string, args []any) (Key, error)) Option {
 	return func(o *Options) {
 		o.Hash = hash
 	}
@@ -123,7 +123,7 @@ func ContextLevel() Option {
 // concurrently. Hence, if 2 identical queries are executed at the ~same time, and
 // there is no cache entry for them, the driver will execute both of them and the
 // last successful one will be stored in the cache.
-func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) error {
+func (d *Driver) Query(ctx context.Context, query string, args, v any) error {
 	// Check if the given statement looks like a standard Ent query (e.g. SELECT).
 	// Custom queries (e.g. CTE) or statements that are prefixed with comments are
 	// not supported. This check is mainly necessary, because PostgreSQL and SQLite
@@ -135,7 +135,7 @@ func (d *Driver) Query(ctx context.Context, query string, args, v interface{}) e
 	if !ok {
 		return fmt.Errorf("entcache: invalid type %T. expect *sql.Rows", v)
 	}
-	argv, ok := args.([]interface{})
+	argv, ok := args.([]any)
 	if !ok {
 		return fmt.Errorf("entcache: invalid type %T. expect []interface{} for args", args)
 	}
@@ -179,9 +179,9 @@ func (d *Driver) Stats() Stats {
 
 // QueryContext calls QueryContext of the underlying driver, or fails if it is not supported.
 // Note, this method is not part of the caching layer since Ent does not use it by default.
-func (d *Driver) QueryContext(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+func (d *Driver) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
 	drv, ok := d.Driver.(interface {
-		QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
+		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.QueryContext is not supported")
@@ -190,9 +190,9 @@ func (d *Driver) QueryContext(ctx context.Context, query string, args ...interfa
 }
 
 // ExecContext calls ExecContext of the underlying driver, or fails if it is not supported.
-func (d *Driver) ExecContext(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+func (d *Driver) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
 	drv, ok := d.Driver.(interface {
-		ExecContext(context.Context, string, ...interface{}) (sql.Result, error)
+		ExecContext(context.Context, string, ...any) (sql.Result, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.ExecContext is not supported")
@@ -204,7 +204,7 @@ func (d *Driver) ExecContext(ctx context.Context, query string, args ...interfac
 var errSkip = errors.New("entcache: skip cache")
 
 // optionsFromContext returns the injected options from the context, or its default value.
-func (d *Driver) optionsFromContext(ctx context.Context, query string, args []interface{}) (ctxOptions, error) {
+func (d *Driver) optionsFromContext(ctx context.Context, query string, args []any) (ctxOptions, error) {
 	var opts ctxOptions
 	if c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions); ok {
 		opts = *c
@@ -232,10 +232,10 @@ func (d *Driver) optionsFromContext(ctx context.Context, query string, args []in
 
 // DefaultHash provides the default implementation for converting
 // a query and its argument to a cache key.
-func DefaultHash(query string, args []interface{}) (Key, error) {
+func DefaultHash(query string, args []any) (Key, error) {
 	key, err := hashstructure.Hash(struct {
 		Q string
-		A []interface{}
+		A []any
 	}{
 		Q: query,
 		A: args,
@@ -290,9 +290,9 @@ func (r *recorder) Next() bool {
 // Scan copies database values for future use (by the repeater)
 // and assign them to the given destinations using the standard
 // database/sql.convertAssign function.
-func (r *recorder) Scan(dest ...interface{}) error {
+func (r *recorder) Scan(dest ...any) error {
 	values := make([]driver.Value, len(dest))
-	args := make([]interface{}, len(dest))
+	args := make([]any, len(dest))
 	c := &rawCopy{values: values}
 	for i := range args {
 		args[i] = c
@@ -358,7 +358,7 @@ func (r *repeater) NextResultSet() bool {
 	return len(r.values) > 0
 }
 
-func (r *repeater) Scan(dest ...interface{}) error {
+func (r *repeater) Scan(dest ...any) error {
 	if !r.Next() {
 		return stdsql.ErrNoRows
 	}
@@ -372,4 +372,4 @@ func (r *repeater) Scan(dest ...interface{}) error {
 }
 
 //go:linkname convertAssign database/sql.convertAssign
-func convertAssign(dest, src interface{}) error
+func convertAssign(dest, src any) error

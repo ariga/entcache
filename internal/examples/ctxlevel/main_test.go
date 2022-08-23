@@ -93,7 +93,7 @@ func TestContextLevel(t *testing.T) {
 		}
 		t.Run("WithoutCache", func(t *testing.T) {
 			var (
-				rsp interface{}
+				rsp any
 				srv = handler.NewDefaultServer(todo.NewSchema(client))
 				gql = gqlclient.New(srv)
 			)
@@ -105,7 +105,7 @@ func TestContextLevel(t *testing.T) {
 		})
 		t.Run("WithCache", func(t *testing.T) {
 			var (
-				rsp interface{}
+				rsp any
 				srv = handler.NewDefaultServer(todo.NewSchema(client))
 				gql = gqlclient.New(srv)
 			)
@@ -126,7 +126,7 @@ type queryCount struct {
 	dialect.Driver
 }
 
-func (q *queryCount) Query(ctx context.Context, query string, args, v interface{}) error {
+func (q *queryCount) Query(ctx context.Context, query string, args, v any) error {
 	q.n++
 	return q.Driver.Query(ctx, query, args, v)
 }
