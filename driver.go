@@ -260,6 +260,11 @@ type rawCopy struct {
 }
 
 func (c *rawCopy) Scan(src interface{}) error {
+	if b, ok := src.([]byte); ok {
+		b1 := make([]byte, len(b))
+		copy(b1, b)
+		src = b1
+	}
 	c.values[0] = src
 	c.values = c.values[1:]
 	return nil
