@@ -13,7 +13,7 @@ import (
 
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
-	"github.com/mitchellh/hashstructure"
+	"github.com/mitchellh/hashstructure/v2"
 )
 
 type (
@@ -239,7 +239,7 @@ func DefaultHash(query string, args []any) (Key, error) {
 	}{
 		Q: query,
 		A: args,
-	}, nil)
+	}, hashstructure.FormatV2, nil)
 	if err != nil {
 		return nil, err
 	}
