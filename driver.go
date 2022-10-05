@@ -4,8 +4,8 @@ import (
 	"context"
 	stdsql "database/sql"
 	"database/sql/driver"
-	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync/atomic"
 	"time"
@@ -33,6 +33,11 @@ type (
 		// function was provided, the DefaultHash is used.
 		Hash func(query string, args []any) (Key, error)
 
+		// KeyHolderHash defines an optional Hash function for converting
+		// a query, its arguments, columns, values to a list of cache key. If no KeyHolderHash
+		// function was provided, the DefaultKeyHolderHash is used.
+		KeyHolderHash func(query string, args []any, columns []string, values [][]driver.Value) (<-chan Key, error)
+
 		// Logf function. If provided, the Driver will call it with
 		// errors that can not be handled.
 		Log func(...any)
@@ -51,6 +56,10 @@ type (
 	}
 )
 
+var findTableNamesRe = regexp.MustCompile(
+	`(?i)(?:(?:from)(?:\s|\(|\")+((?:\.|\w*)+)(?:\s|\)|.?)+)`,
+)
+
 // NewDriver returns a new Driver an existing driver and optional
 // configuration functions. For example:
 //
@@ -65,7 +74,7 @@ type (
 //		)
 //	)
 func NewDriver(drv dialect.Driver, opts ...Option) *Driver {
-	options := &Options{Hash: DefaultHash, Cache: NewLRU(0)}
+	options := &Options{Hash: DefaultHash, KeyHolderHash: DefaultKeyHolderHash, Cache: NewLRU(0)}
 	for _, opt := range opts {
 		opt(options)
 	}
@@ -88,6 +97,16 @@ func TTL(ttl time.Duration) Option {
 func Hash(hash func(query string, args []any) (Key, error)) Option {
 	return func(o *Options) {
 		o.Hash = hash
+	}
+}
+
+// KeyHolderHash configures an optional KeyHolderHash function for
+// converting a query, its arguments, columns, values to a cache key.
+func KeyHolderHash(
+	keyHolderHash func(query string, args []any, columns []string, values [][]driver.Value) (<-chan Key, error),
+) Option {
+	return func(o *Options) {
+		o.KeyHolderHash = keyHolderHash
 	}
 }
 
@@ -116,6 +135,107 @@ func ContextLevel() Option {
 	}
 }
 
+func (d *Driver) getRecorderOnCloseFunc(
+	ctx context.Context,
+	query string,
+	args []any,
+	opts *ctxOptions,
+) func([]string, [][]driver.Value) {
+	return func(columns []string, values [][]driver.Value) {
+		holderKeys, err := d.KeyHolderHash(query, args, columns, values)
+		if err != nil {
+			if d.Log != nil {
+				atomic.AddUint64(&d.stats.Errors, 1)
+				d.Log(
+					fmt.Sprintf(
+						"entcache: failed getting holder keys: %v",
+						err,
+					),
+				)
+			}
+			return
+		}
+
+		// add new key to holders
+		for holderKey := range holderKeys {
+			var newHolderValues *[][]Key
+			switch holder, err := d.Cache.Get(ctx, holderKey); {
+			case err == nil:
+				newHolderValues = &holder.Values
+				if len(*newHolderValues) != 1 {
+					// wrong key
+					continue
+				}
+				if opts.evict {
+					// evict related key
+					if err := d.Cache.Del(ctx, (*newHolderValues)[0]...); err != nil {
+						atomic.AddUint64(&d.stats.Errors, 1)
+						d.Log(
+							fmt.Sprintf(
+								"entcache: failed deleting %v holder: %v",
+								holderKey,
+								err,
+							),
+						)
+					}
+
+					vs := [][]Key{{opts.key}}
+					newHolderValues = &vs
+				} else {
+					(*newHolderValues)[0] = append((*newHolderValues)[0], opts.key)
+				}
+			case err == ErrNotFound:
+				vs := [][]Key{{opts.key}}
+				newHolderValues = &vs
+			default:
+				if d.Log != nil {
+					atomic.AddUint64(&d.stats.Errors, 1)
+					d.Log(
+						fmt.Sprintf(
+							"entcache: failed getting %v holder: %v",
+							holderKey,
+							err,
+						),
+					)
+				}
+				continue
+			}
+
+			if err := d.Cache.Add(
+				ctx,
+				holderKey,
+				&Entry{Values: *newHolderValues},
+				opts.ttl*2,
+			); err != nil && d.Log != nil {
+				atomic.AddUint64(&d.stats.Errors, 1)
+				d.Log(
+					fmt.Sprintf(
+						"entcache: failed storing holder %v in cache: %v",
+						holderKey,
+						err,
+					),
+				)
+			}
+		}
+
+		if err := d.Cache.Add(
+			ctx,
+			opts.key,
+			&Entry{Columns: columns, Values: values},
+			opts.ttl,
+		); err != nil && d.Log != nil {
+			atomic.AddUint64(&d.stats.Errors, 1)
+			d.Log(
+				fmt.Sprintf(
+					"entcache: failed storing entry %v in cache: %v",
+					opts.key,
+					err,
+				),
+			)
+		}
+	}
+}
+
 // Query implements the Querier interface for the driver. It falls back to the
 // underlying wrapped driver in case of caching error.
 //
@@ -131,18 +251,48 @@ func (d *Driver) Query(ctx context.Context, query string, args, v any) error {
 	if !strings.HasPrefix(query, "SELECT") && !strings.HasPrefix(query, "select") {
 		return d.Driver.Query(ctx, query, args, v)
 	}
+
 	vr, ok := v.(*sql.Rows)
 	if !ok {
 		return fmt.Errorf("entcache: invalid type %T. expect *sql.Rows", v)
 	}
+
 	argv, ok := args.([]any)
 	if !ok {
 		return fmt.Errorf("entcache: invalid type %T. expect []interface{} for args", args)
 	}
+
 	opts, err := d.optionsFromContext(ctx, query, argv)
 	if err != nil {
+		if d.Log != nil {
+			atomic.AddUint64(&d.stats.Errors, 1)
+			d.Log(
+				fmt.Sprintf(
+					"entcache: failed getting options: %v",
+					err,
+				),
+			)
+		}
+		opts = ctxOptions{skip: true}
+	}
+
+	if opts.skip {
 		return d.Driver.Query(ctx, query, args, v)
 	}
+
+	if opts.evict {
+		if err := d.Cache.Del(ctx, opts.key); err != nil && d.Log != nil {
+			atomic.AddUint64(&d.stats.Errors, 1)
+			d.Log(
+				fmt.Sprintf(
+					"entcache: failed evicting %v cache entry: %v",
+					opts.key,
+					err,
+				),
+			)
+		}
+	}
+
 	atomic.AddUint64(&d.stats.Gets, 1)
 	switch e, err := d.Cache.Get(ctx, opts.key); {
 	case err == nil:
@@ -154,15 +304,19 @@ func (d *Driver) Query(ctx context.Context, query string, args, v any) error {
 		}
 		vr.ColumnScanner = &recorder{
 			ColumnScanner: vr.ColumnScanner,
-			onClose: func(columns []string, values [][]driver.Value) {
-				err := d.Cache.Add(ctx, opts.key, &Entry{Columns: columns, Values: values}, opts.ttl)
-				if err != nil && d.Log != nil {
-					atomic.AddUint64(&d.stats.Errors, 1)
-					d.Log(fmt.Sprintf("entcache: failed storing entry %v in cache: %v", opts.key, err))
-				}
-			},
+			onClose:       d.getRecorderOnCloseFunc(ctx, query, argv, &opts),
 		}
 	default:
+		if d.Log != nil {
+			atomic.AddUint64(&d.stats.Errors, 1)
+			d.Log(
+				fmt.Sprintf(
+					"entcache: failed getting %v cache entry: %v",
+					opts.key,
+					err,
+				),
+			)
+		}
 		return d.Driver.Query(ctx, query, args, v)
 	}
 	return nil
@@ -200,11 +354,12 @@ func (d *Driver) ExecContext(ctx context.Context, query string, args ...any) (sq
 	return drv.ExecContext(ctx, query, args...)
 }
 
-// errSkip tells the driver to skip cache layer.
-var errSkip = errors.New("entcache: skip cache")
-
 // optionsFromContext returns the injected options from the context, or its default value.
-func (d *Driver) optionsFromContext(ctx context.Context, query string, args []any) (ctxOptions, error) {
+func (d *Driver) optionsFromContext(
+	ctx context.Context,
+	query string,
+	args []any,
+) (ctxOptions, error) {
 	var opts ctxOptions
 	if c, ok := ctx.Value(ctxOptionsKey).(*ctxOptions); ok {
 		opts = *c
@@ -212,20 +367,12 @@ func (d *Driver) optionsFromContext(ctx context.Context, query string, args []an
 	if opts.key == nil {
 		key, err := d.Hash(query, args)
 		if err != nil {
-			return opts, errSkip
+			return opts, err
 		}
 		opts.key = key
 	}
 	if opts.ttl == 0 {
 		opts.ttl = d.TTL
-	}
-	if opts.evict {
-		if err := d.Cache.Del(ctx, opts.key); err != nil {
-			return opts, err
-		}
-	}
-	if opts.skip {
-		return opts, errSkip
 	}
 	return opts, nil
 }
@@ -244,6 +391,39 @@ func DefaultHash(query string, args []any) (Key, error) {
 		return nil, err
 	}
 	return key, nil
+}
+
+// DefaultKeyHolderHash provides the default implementation for converting
+// a query, its argument, columns, values to a holder key.
+func DefaultKeyHolderHash(
+	query string,
+	args []any,
+	columns []string,
+	values [][]driver.Value,
+) (<-chan Key, error) {
+	c := make(chan Key)
+	firstTableName := ""
+	fromClauses := findTableNamesRe.FindStringSubmatch(query)
+	if len(fromClauses) == 2 {
+		firstTableName = fromClauses[1]
+	}
+
+	go func() {
+		defer close(c)
+		for i := range values {
+			rawKey := "(" + firstTableName + ")"
+			for k := range values[i] {
+				rawKey += fmt.Sprint(values[i][k])
+			}
+			key, err := hashstructure.Hash(rawKey, hashstructure.FormatV2, nil)
+			if err != nil {
+				continue
+			}
+			c <- key
+		}
+	}()
+
+	return c, nil
 }
 
 // Stats represents the cache statistics of the driver.
@@ -342,18 +522,23 @@ type repeater struct {
 func (*repeater) Close() error {
 	return nil
 }
+
 func (*repeater) ColumnTypes() ([]*stdsql.ColumnType, error) {
 	return nil, fmt.Errorf("entcache.ColumnTypes is not supported")
 }
+
 func (r *repeater) Columns() ([]string, error) {
 	return r.columns, nil
 }
+
 func (*repeater) Err() error {
 	return nil
 }
+
 func (r *repeater) Next() bool {
 	return len(r.values) > 0
 }
+
 func (r *repeater) NextResultSet() bool {
 	return len(r.values) > 0
 }

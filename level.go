@@ -21,14 +21,13 @@ type (
 		Values  [][]driver.Value
 	}
 
-	// A Key defines a comparable Go value.
-	// See http://golang.org/ref/spec#Comparison_operators
-	Key any
+	// A Key defines a driver.Value which could store in cache.
+	Key = driver.Value
 
 	// AddGetDeleter defines the interface for getting,
 	// adding and deleting entries from the cache.
 	AddGetDeleter interface {
-		Del(context.Context, Key) error
+		Del(context.Context, ...Key) error
 		Add(context.Context, Key, *Entry, time.Duration) error
 		Get(context.Context, Key) (*Entry, error)
 	}
@@ -81,7 +80,8 @@ type (
 	// entry wraps the Entry with additional expiry information.
 	entry struct {
 		*Entry
-		expiry time.Time
+		ttl        time.Duration
+		createTime time.Time
 	}
 )
 
@@ -105,11 +105,7 @@ func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 	if err := ne.UnmarshalBinary(buf); err != nil {
 		return err
 	}
-	if ttl == 0 {
-		l.Cache.Add(k, ne)
-	} else {
-		l.Cache.Add(k, &entry{Entry: ne, expiry: time.Now().Add(ttl)})
-	}
+	l.Cache.Add(k, &entry{Entry: ne, createTime: time.Now(), ttl: ttl})
 	return nil
 }
 
@@ -125,7 +121,7 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 	case *Entry:
 		return e, nil
 	case *entry:
-		if time.Now().Before(e.expiry) {
+		if e.ttl == 0 || time.Now().Before(e.createTime.Add(e.ttl)) { // 0 means no TTL
 			return e.Entry, nil
 		}
 		l.mu.Lock()
@@ -138,10 +134,12 @@ func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
 }
 
 // Del deletes an entry from the cache.
-func (l *LRU) Del(_ context.Context, k Key) error {
-	l.mu.Lock()
-	l.Cache.Remove(k)
-	l.mu.Unlock()
+func (l *LRU) Del(_ context.Context, ks ...Key) error {
+	for _, k := range ks {
+		l.mu.Lock()
+		l.Cache.Remove(k)
+		l.mu.Unlock()
+	}
 	return nil
 }
 
@@ -198,12 +196,15 @@ func (r *Redis) Get(ctx context.Context, k Key) (*Entry, error) {
 }
 
 // Del deletes an entry from the cache.
-func (r *Redis) Del(ctx context.Context, k Key) error {
-	key := fmt.Sprint(k)
-	if key == "" {
-		return nil
+func (r *Redis) Del(ctx context.Context, ks ...Key) error {
+	keys := make([]string, 0, len(ks))
+	for _, k := range ks {
+		key := fmt.Sprint(k)
+		if key != "" {
+			keys = append(keys, key)
+		}
 	}
-	return r.c.Del(ctx, key).Err()
+	return r.c.Del(ctx, keys...).Err()
 }
 
 // multiLevel provides a multi-level cache implementation.
@@ -235,9 +236,9 @@ func (m *multiLevel) Get(ctx context.Context, k Key) (*Entry, error) {
 }
 
 // Del deletes an entry from the cache.
-func (m *multiLevel) Del(ctx context.Context, k Key) error {
+func (m *multiLevel) Del(ctx context.Context, ks ...Key) error {
 	for i := range m.levels {
-		if err := m.levels[i].Del(ctx, k); err != nil {
+		if err := m.levels[i].Del(ctx, ks...); err != nil {
 			return err
 		}
 	}
@@ -266,10 +267,10 @@ func (*contextLevel) Add(ctx context.Context, k Key, e *Entry, ttl time.Duration
 }
 
 // Del deletes an entry from the cache.
-func (*contextLevel) Del(ctx context.Context, k Key) error {
+func (*contextLevel) Del(ctx context.Context, k ...Key) error {
 	c, ok := FromContext(ctx)
 	if !ok {
 		return nil
 	}
-	return c.Del(ctx, k)
+	return c.Del(ctx, k...)
 }
