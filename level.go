@@ -75,7 +75,7 @@ var ErrNotFound = errors.New("entcache: entry was not found")
 type (
 	// LRU provides an LRU cache that implements the AddGetter interface.
 	LRU struct {
-		mu sync.RWMutex
+		mu sync.Mutex
 		*lru.Cache
 	}
 	// entry wraps the Entry with additional expiry information.
@@ -115,9 +115,9 @@ func (l *LRU) Add(_ context.Context, k Key, e *Entry, ttl time.Duration) error {
 
 // Get gets an entry from the cache.
 func (l *LRU) Get(_ context.Context, k Key) (*Entry, error) {
-	l.mu.RLock()
+	l.mu.Lock()
 	e, ok := l.Cache.Get(k)
-	l.mu.RUnlock()
+	l.mu.Unlock()
 	if !ok {
 		return nil, ErrNotFound
 	}
