@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/dialect"
 	"entgo.io/ent/dialect/sql"
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/go-redis/redismock/v8"
+	"github.com/go-redis/redismock/v9"
 )
 
 func TestDriver_ContextLevel(t *testing.T) {
