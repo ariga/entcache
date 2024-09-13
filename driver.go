@@ -179,9 +179,9 @@ func (d *Driver) Stats() Stats {
 
 // QueryContext calls QueryContext of the underlying driver, or fails if it is not supported.
 // Note, this method is not part of the caching layer since Ent does not use it by default.
-func (d *Driver) QueryContext(ctx context.Context, query string, args ...any) (*sql.Rows, error) {
+func (d *Driver) QueryContext(ctx context.Context, query string, args ...any) (*stdsql.Rows, error) {
 	drv, ok := d.Driver.(interface {
-		QueryContext(context.Context, string, ...any) (*sql.Rows, error)
+		QueryContext(context.Context, string, ...any) (*stdsql.Rows, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.QueryContext is not supported")
@@ -190,9 +190,9 @@ func (d *Driver) QueryContext(ctx context.Context, query string, args ...any) (*
 }
 
 // ExecContext calls ExecContext of the underlying driver, or fails if it is not supported.
-func (d *Driver) ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error) {
+func (d *Driver) ExecContext(ctx context.Context, query string, args ...any) (stdsql.Result, error) {
 	drv, ok := d.Driver.(interface {
-		ExecContext(context.Context, string, ...any) (sql.Result, error)
+		ExecContext(context.Context, string, ...any) (stdsql.Result, error)
 	})
 	if !ok {
 		return nil, fmt.Errorf("Driver.ExecContext is not supported")
